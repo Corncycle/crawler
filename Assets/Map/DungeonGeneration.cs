@@ -1,17 +1,23 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 using System.Text;
 
 public class DungeonGeneration : MonoBehaviour
 {
     static int mapHeight = 20;
     static int mapWidth = 60;
+    public TileBase floorTile;
+    public TileBase wallTile;
+
+    public Tilemap groundTilemap;
+    public Tilemap wallTilemap;
 
     // what proportion of the original tiles should be walls. 0 <= inDe <= 1. default 0.45
     static float initialDensity = 0.45f;
     // how often to override with wall anyway. keep this low
-    static float chanceToOverrideWithWall = 0.02f;
+    //static float chanceToOverrideWithWall = 0.02f;
 
     int[,] tiles;
     static Dictionary<int, string> consoleTiles = new Dictionary<int, string>()
@@ -20,14 +26,25 @@ public class DungeonGeneration : MonoBehaviour
         {1, "#"}
     };
 
-    // Start is called before the first frame update
-    void Start()
-    {
+    void Awake() {
         tiles = GenerateDungeon();
-        print("Hello world");
+        
+        for (int i = 0; i < mapHeight; i++) {
+            for (int j = 0; j < mapWidth; j++) {
+                Vector3Int pos = new Vector3Int(j, i, 0);
+                if (tiles[i, j] == 0) {
+                    groundTilemap.SetTile(pos, floorTile);
+                } else {
+                    wallTilemap.SetTile(pos, wallTile);
+                }
+            }
+        }
     }
 
-    // Update is called once per frame
+    void Start()
+    {
+    }
+
     void Update()
     {
         
@@ -35,14 +52,14 @@ public class DungeonGeneration : MonoBehaviour
 
     int[,] GenerateDungeon() {
         var output = FillWithNoise(mapHeight, mapWidth);
-        Print2DArray(output);
-        for (int _ = 0; _ < 2; _++) {
+        //Print2DArray(output);
+        for (int _ = 0; _ < 4; _++) {
             output = DoCellularIteration(output, true, false);
-            Print2DArray(output);
+            //Print2DArray(output);
         }
         for (int _ = 0; _ < 3; _++) {
             output = DoCellularIteration(output, false, false);
-            Print2DArray(output);
+            //Print2DArray(output);
         }
 
         return output;
@@ -167,6 +184,19 @@ public class DungeonGeneration : MonoBehaviour
             return consoleTiles[n];
         } else {
             return "?";
+        }
+    }
+
+    public Vector2 FindRandomOpenTile() {
+        if (tiles is null) {
+            throw (new System.Exception("Cannot find open tile in non-initialized tiles"));
+        }
+        while (true) {
+            int i = Random.Range(0, mapHeight);
+            int j = Random.Range(0, mapWidth);
+            if (tiles[i, j] == 0) {
+                return new Vector2(j, i);
+            }
         }
     }
 }
