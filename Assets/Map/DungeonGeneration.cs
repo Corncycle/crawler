@@ -50,6 +50,14 @@ public class DungeonGeneration : MonoBehaviour
         
     }
 
+    public bool HasSolidTileAt((int, int) tup) {
+        return (tiles[tup.Item2, tup.Item1] == 1);
+    }
+
+    bool HasSolidTileAt(int x, int y) {
+        return (tiles[y, x] == 1);
+    }
+
     int[,] GenerateDungeon() {
         var output = FillWithNoise(mapHeight, mapWidth);
         //Print2DArray(output);
