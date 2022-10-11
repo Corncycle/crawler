@@ -6,6 +6,8 @@ using UnityEngine.InputSystem;
 public class PlayerMovement : MonoBehaviour
 {
     (int, int) lastVisitedTile;
+    const int PLAYER_HORIZONTAL = 0;
+    const int PLAYER_VERTICAL = 1;
     // rawInput is the input received directly from Unity from OnMove
     Vector2 rawInput;
     // moveInput is a vector in the same direction as rawInput, with integer coordinates
@@ -29,7 +31,7 @@ public class PlayerMovement : MonoBehaviour
 
     bool isMoving = false;
     [SerializeField] float internalSpeedMultiplier = 10f;
-    float speed = 1f;
+    [SerializeField] float speed = 1f;
 
     void Start()
     {
@@ -58,6 +60,7 @@ public class PlayerMovement : MonoBehaviour
                 if (!dungeonGeneration.HasSolidTileAt(CoordToTuple(attemptedDestination))) {
                     lastDirection = processedDirection;
                     movePoint.position = (Vector3) attemptedDestination;
+                    AlignPlayerAfterMove();
                 }
             } else {
                 isMoving = false;
@@ -124,5 +127,27 @@ public class PlayerMovement : MonoBehaviour
 
     Vector2 TupleToCoord((int, int) tup) {
         return new Vector2(tup.Item1 + 0.5f, tup.Item2 + 0.5f);
+    }
+
+    // AlignPlayerAfterMove should only be called after initiating a player movement and
+    // updating lastDirection. This method will realign the player to the axis after this is done
+    void AlignPlayerAfterMove() {
+        if (lastDirection.x == 0) {
+            AlignPlayerToAxis(PLAYER_HORIZONTAL);
+        } else {
+            AlignPlayerToAxis(PLAYER_VERTICAL);
+        }
+    }
+
+    void AlignPlayerToAxis(int axis) {
+        if (axis == PLAYER_HORIZONTAL) {
+            float newX = System.Convert.ToInt32(transform.position.x - 0.5f) + 0.5f;
+            transform.position = new Vector3(newX, transform.position.y, 0);
+        } else if (axis == PLAYER_VERTICAL) {
+            float newY = System.Convert.ToInt32(transform.position.y - 0.5f) + 0.5f;
+            transform.position = new Vector3(transform.position.x, newY, 0);
+        } else {
+            print("PlayerMovement.cs: AlignPlayerToAxis: I hope this never prints!");
+        }
     }
 }
