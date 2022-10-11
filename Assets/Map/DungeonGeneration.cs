@@ -6,8 +6,8 @@ using System.Text;
 
 public class DungeonGeneration : MonoBehaviour
 {
-    static int mapHeight = 20;
-    static int mapWidth = 60;
+    static int mapHeight = 40;
+    static int mapWidth = 80;
     public TileBase floorTile;
     public TileBase wallTile;
 

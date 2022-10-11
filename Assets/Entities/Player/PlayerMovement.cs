@@ -6,41 +6,66 @@ using UnityEngine.InputSystem;
 public class PlayerMovement : MonoBehaviour
 {
     (int, int) lastVisitedTile;
+    // rawInput is the input received directly from Unity from OnMove
     Vector2 rawInput;
+    // moveInput is a vector in the same direction as rawInput, with integer coordinates
+    // E.g. (0.71, 0.71) is stored as (1.0, 1.0) in moveInput
     Vector2 moveInput;
+    // processedDirection is the output of CleanInputContextual. It is always a cardinal vector
+    // The computation behind it can be found in the comment above CleanInputContextual
     Vector2 processedDirection = Vector2.zero;
+    // lastDirection is the direction the player last moved in
+    Vector2 lastDirection = Vector2.zero;
+
+    // movePoint is a point representing the destination the player wishes to move to
+    public Transform movePoint;
+    // movePointTolerance is the distance the player must be from the center of the destination
+    // tile in order to be able to move the movePoint again
+    [SerializeField] float movePointTolerance = 0.00002f;
+
     DungeonGeneration dungeonGeneration;
 
+    Animator animator;
+
     bool isMoving = false;
-    float internalSpeedMultiplier = 5f;
+    [SerializeField] float internalSpeedMultiplier = 10f;
     float speed = 1f;
 
-    // Start is called before the first frame update
     void Start()
     {
+        animator = GetComponentInChildren<Animator>();
+
         dungeonGeneration = FindObjectOfType<DungeonGeneration>();
         Vector2 rand = dungeonGeneration.FindRandomOpenTile();
+        
+        //Camera cam = FindObjectOfType<Camera>();
+        //cam.transform.position = (Vector3) rand + new Vector3(0, 0, -1);
+
         transform.position = rand + new Vector2(0.5f, 0.5f);
+        movePoint.parent = null;
         lastVisitedTile = ((int) rand.x, (int) rand.y);
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-    }
-
-    void FixedUpdate() {
-        if (!isMoving) {
-            if (rawInput != Vector2.zero) {
-                moveInput = new Vector2Int(System.Convert.ToInt32(rawInput.x), System.Convert.ToInt32(rawInput.y));
-                processedDirection = CleanInputContextual(moveInput);
-                StartCoroutine(MovePlayer());
+    void Update() {
+        transform.position = Vector3.MoveTowards(transform.position, movePoint.position, effectiveSpeed() * Time.deltaTime);
+        if (Vector3.Distance(transform.position, movePoint.position) <= movePointTolerance) {
+            moveInput = new Vector2Int(System.Convert.ToInt32(rawInput.x), System.Convert.ToInt32(rawInput.y));
+            processedDirection = CleanInputContextual(moveInput);
+            if (processedDirection != Vector2.zero) {
+                isMoving = true;
+                animator.SetBool("moving", true);
+                Vector2 attemptedDestination = (Vector2) movePoint.position + processedDirection;
+                if (!dungeonGeneration.HasSolidTileAt(CoordToTuple(attemptedDestination))) {
+                    lastDirection = processedDirection;
+                    movePoint.position = (Vector3) attemptedDestination;
+                }
+            } else {
+                isMoving = false;
+                animator.SetBool("moving", false);
             }
         }
     }
 
-    // OnMove updates moveInput to one of the 9 directions with integer components
-    // OnMove also updates overrideDirection with basic logic to only allow cardinals
     void OnMove(InputValue value) {
         rawInput = value.Get<Vector2>();
     }
@@ -49,40 +74,35 @@ public class PlayerMovement : MonoBehaviour
         return speed * internalSpeedMultiplier;
     }
 
-    IEnumerator MovePlayer() {
-        float timeToMove = 1f / effectiveSpeed();
-        isMoving = true;
-        float elapsedTime = 0;
-        Vector3 start = transform.position;
-        Vector3 end = start + new Vector3(processedDirection.x, processedDirection.y);
-
-        if (dungeonGeneration.HasSolidTileAt(CoordToTuple(end))) {
-            isMoving = false;
-            yield return null;
-        } else {
-            while (elapsedTime < timeToMove) {
-                transform.position = Vector3.Lerp(start, end, (elapsedTime / timeToMove));
-                elapsedTime += Time.deltaTime;
-                yield return null;
-            }
-
-            transform.position = end;
-
-            isMoving = false;
-        }
-    }
-
+    // CleanInputContextual always returns a cardinal vector or the zero vector
+    // It returns a vector that feels "natural" based on previous movements
+    // For example, running diagonally into a wall will return a cardinal vector parallel to the wall
+    // Running diagonally in open space alternates between the two cardinals making up the diagonal
     Vector2 CleanInputContextual(Vector2 input) {
         // If input is zero or a clear cardinal, then use input
         if (input == Vector2.zero || input.magnitude == 1) {
             return input;
         }
-        // If the previous movement was not parallel to the new input, take the "new" direction
-        Vector2 v = HasPerpendicularComponent(processedDirection, moveInput);
-        if (v != Vector2.zero) {
+        Vector2 xVec = new Vector2(input.x, 0);
+        Vector2 yVec = new Vector2(0, input.y);
+        // If we are running diagonally into a wall, try to find an open direction
+        if (dungeonGeneration.HasSolidTileAt(CoordToTuple((Vector2) transform.position + xVec))) {
+            if (dungeonGeneration.HasSolidTileAt(CoordToTuple((Vector2) transform.position + yVec))) {
+                return xVec;
+            } else {
+                return yVec;
+            }
+        }
+        if (dungeonGeneration.HasSolidTileAt(CoordToTuple((Vector2) transform.position + yVec))) {
+            return xVec;
+        }
+
+        // If the new movement is not parallel to the last taken movement, move in the "new" direction
+        Vector2 v = HasPerpendicularComponent(lastDirection, input);
+        if (v != Vector2.zero && !dungeonGeneration.HasSolidTileAt(CoordToTuple((Vector2) transform.position + v))) {
             return v;
         } else {
-            return processedDirection;
+            return lastDirection;
         }
     }
 
@@ -96,10 +116,6 @@ public class PlayerMovement : MonoBehaviour
             Vector2 proj = Vector2.Dot(card, input) * card;
             return (input - proj);
         }
-    }
-
-    Vector2 FlattenVectorToX(Vector2 input) {
-        return new Vector2(input.x, 0);
     }
 
     (int, int) CoordToTuple(Vector2 coord) {
