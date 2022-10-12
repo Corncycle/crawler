@@ -46,6 +46,11 @@ public class PlayerMovement : MonoBehaviour
         transform.position = rand + new Vector2(0.5f, 0.5f);
         movePoint.parent = null;
         lastVisitedTile = ((int) rand.x, (int) rand.y);
+
+        // Remove this at some point
+        if (isMoving) {
+            print("blah");
+        }
     }
 
     void Update() {
@@ -58,6 +63,7 @@ public class PlayerMovement : MonoBehaviour
                 animator.SetBool("moving", true);
                 Vector2 attemptedDestination = (Vector2) movePoint.position + processedDirection;
                 if (!dungeonGeneration.HasSolidTileAt(CoordToTuple(attemptedDestination))) {
+                    lastVisitedTile = CoordToTuple((Vector2) transform.position);
                     lastDirection = processedDirection;
                     movePoint.position = (Vector3) attemptedDestination;
                     AlignPlayerAfterMove();

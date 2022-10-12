@@ -6,13 +6,19 @@ using System.Text;
 
 public class DungeonGeneration : MonoBehaviour
 {
-    static int mapHeight = 40;
-    static int mapWidth = 80;
+    public static int mapHeight = 40;
+    public static int mapWidth = 40;
     public TileBase floorTile;
     public TileBase wallTile;
 
+    public TileBase topWall;
+    public TileBase blackWall;
+    public TileBase frontWall;
+
+    public Tilemap decorativeWallTilemap;
     public Tilemap groundTilemap;
     public Tilemap wallTilemap;
+    public Tilemap itemTilemap;
 
     // what proportion of the original tiles should be walls. 0 <= inDe <= 1. default 0.45
     static float initialDensity = 0.45f;
@@ -29,37 +35,43 @@ public class DungeonGeneration : MonoBehaviour
     void Awake() {
         tiles = GenerateDungeon();
         
-        for (int i = 0; i < mapHeight; i++) {
-            for (int j = 0; j < mapWidth; j++) {
-                Vector3Int pos = new Vector3Int(j, i, 0);
-                if (tiles[i, j] == 0) {
+        for (int y = 0; y < mapHeight; y++) {
+            for (int x = 0; x < mapWidth; x++) {
+                Vector3Int pos = new Vector3Int(x, y, 0);
+                if (tiles[x, y] == 0) {
                     groundTilemap.SetTile(pos, floorTile);
                 } else {
                     wallTilemap.SetTile(pos, wallTile);
                 }
             }
         }
-    }
 
-    void Start()
-    {
-    }
-
-    void Update()
-    {
-        
+        for (int y = 1; y < mapHeight - 1; y++) {
+            for (int x = 0; x < mapWidth; x++) {
+                if (tiles[x, y] == 1) {
+                    Vector3Int pos = new Vector3Int(x, y, 0);
+                    wallTilemap.SetTile(pos, blackWall);
+                    if (tiles[x, y + 1] == 0) {
+                        decorativeWallTilemap.SetTile(pos + new Vector3Int(0, 1, 0), topWall);
+                    } else if (tiles[x, y - 1] == 0) {
+                        wallTilemap.SetTile(pos, frontWall);
+                        groundTilemap.SetTile(pos, floorTile);
+                    }
+                }
+            }
+        }
     }
 
     public bool HasSolidTileAt((int, int) tup) {
-        return (tiles[tup.Item2, tup.Item1] == 1);
+        return (tiles[tup.Item1, tup.Item2] == 1);
     }
 
     bool HasSolidTileAt(int x, int y) {
-        return (tiles[y, x] == 1);
+        return (tiles[x, y] == 1);
     }
 
     int[,] GenerateDungeon() {
-        var output = FillWithNoise(mapHeight, mapWidth);
+        var output = FillWithNoise(mapWidth, mapHeight);
         //Print2DArray(output);
         for (int _ = 0; _ < 4; _++) {
             output = DoCellularIteration(output, true, false);
@@ -73,12 +85,12 @@ public class DungeonGeneration : MonoBehaviour
         return output;
     }
 
-    int[,] FillWithNoise(int height, int width) {
-        int[,] output = new int[height, width];
-        for (int i = 0; i < height; i++) {
-            for (int j = 0; j < width; j++) {
+    int[,] FillWithNoise(int width, int height) {
+        int[,] output = new int[width, height];
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
                 if (Random.value < initialDensity) {
-                    output[i, j] = 1;
+                    output[x, y] = 1;
                 }
             }
         }
@@ -87,74 +99,74 @@ public class DungeonGeneration : MonoBehaviour
 
     // if extraCondition is true we allow less large open areas
     int[,] DoCellularIteration(int[,] old, bool extraCondition, bool allowWallOverride) {
-        int height = old.GetLength(0);
-        int width = old.GetLength(1);
-        int[,] output = new int[height, width];
+        int width = old.GetLength(0);
+        int height = old.GetLength(1);
+        int[,] output = new int[width, height];
         // non-edges
-        for (int i = 1; i < height - 1; i++) {
+        for (int y = 1; y < height - 1; y++) {
             int lSlice;
-            int mSlice = countSlice(old, i, 0);
-            int rSlice = countSlice(old, i, 1);
-            for (int j = 1; j < width - 1; j++) {
+            int mSlice = countSlice(old, 0, y);
+            int rSlice = countSlice(old, 1, y);
+            for (int x = 1; x < width - 1; x++) {
                 lSlice = mSlice;
                 mSlice = rSlice;
-                rSlice = countSlice(old, i, j + 1);
+                rSlice = countSlice(old, x + 1, y);
                 int count = lSlice + mSlice + rSlice;
                 if (extraCondition) {
                     if (count <= 1) {
-                        if (check2Range(old, i, j, height, width)) {
-                            output[i, j] = 1;
+                        if (check2Range(old, x, y, height, width)) {
+                            output[x, y] = 1;
                             continue;
                         }
                     }
                 }
                 if (count >= 5) {
-                    output[i, j] = 1;
+                    output[x, y] = 1;
                 } else {
-                    output[i, j] = 0;
+                    output[x, y] = 0;
                 }
             }
         }
         // top and bottom (no corners)
-        for (int j = 1; j < width - 1; j++) {
-            int count = old[0,j-1] + old[0,j] + old[0,j+1] + old[1,j-1] + old[1,j] + old[1,j+1];
+        for (int x = 1; x < width - 1; x++) {
+            int count = old[x-1,0] + old[x,0] + old[x+1,0] + old[x-1,1] + old[x,1] + old[x+1,1];
             if (count >= 2) {
-                output[0, j] = 1;
+                output[x, 0] = 1;
             }
             int h = height;
-            count = old[h-1,j-1] + old[h-1,j] + old[h-1,j+1] + old[h-2,j-1] + old[h-2,j] + old[h-2,j+1];
+            count = old[x-1,h-1] + old[x,h-1] + old[x+1,h-1] + old[x-1,h-2] + old[x,h-2] + old[x+1,h-2];
             if (count >= 2) {
-                output[h-1, j] = 1;
+                output[x, h-1] = 1;
             }
         }
         // left and right (no corners)
-        for (int i = 1; i < height - 1; i++) {
-            int count = old[i-1,0] + old[i,0] + old[i+1,0] + old[i-1,1] + old[i,1] + old[i+1,1];
+        for (int y = 1; y < height - 1; y++) {
+            int count = old[0,y-1] + old[0,y] + old[0,y+1] + old[1,y-1] + old[1,y] + old[1,y+1];
             if (count >= 2) {
-                output[i, 0] = 1;
+                output[1, y] = 1;
             }
             int w = width;
-            count = old[i-1,w-1] + old[i,w-1] + old[i+1,w-1] + old[i-1,w-2] + old[i,w-2] + old[i+1,w-2];
+            count = old[w-1,y-1] + old[w-1,y] + old[w-1,y+1] + old[w-2,y-1] + old[w-2,y] + old[w-2,y+1];
             if (count >= 2) {
-                output[i, w-1] = 1;
+                output[w-1, y] = 1;
             } 
         }
         output[0, 0] = 1;
-        output[0, width - 1] = 1;
-        output[height - 1, 0] = 1;
-        output[height - 1, width - 1] = 1;
+        output[width - 1, 0] = 1;
+        output[0, height - 1] = 1;
+        output[width - 1, height - 1] = 1;
 
         return output;
     }
 
-    bool check2Range(int[,] arr, int i, int j, int height, int width) {
-        if (i < 2 || j < 2 || i > height - 3 || j > width - 3) {
+    bool check2Range(int[,] arr, int x, int y, int height, int width) {
+        if (x < 2 || y < 2 || x > width - 3|| y > height - 3) {
             return false;
         }
         int count = 0;
-        for (int ii = -2; ii < 3; ii++) {
-            for (int jj = -2; jj < 3; jj++) {
-                if (arr[i + ii, j + jj] != 0) {
+        for (int yy = -2; yy < 3; yy++) {
+            for (int xx = -2; xx < 3; xx++) {
+                if (arr[x + xx, y + yy] != 0) {
                     count += 1;
                 }
             }
@@ -162,15 +174,15 @@ public class DungeonGeneration : MonoBehaviour
         return count < 1;
     }
 
-    int countSlice(int[,] arr, int i, int j) {
+    int countSlice(int[,] arr, int x, int y) {
         int count = 0;
-        for (int k = -1; k < 2; k++) {
-            count += arr[i + k, j];
+        for (int yy = -1; yy < 2; yy++) {
+            count += arr[x, y + yy];
         }
         return count;
     }
 
-    void PrintMap() {
+    public void PrintMap() {
         Print2DArray(tiles);
     }
 
@@ -178,9 +190,9 @@ public class DungeonGeneration : MonoBehaviour
         int height = arr.GetLength(0);
         int width = arr.GetLength(1);
         StringBuilder sb = new StringBuilder("", (height + 1) * width);
-        for (int i = 0; i < height; i++) {
-            for (int j = 0; j < width; j++) {
-                sb.Append(GetConsoleChar(arr[i,j]));
+        for (int y = height - 1; y >= 0; y--) {
+            for (int x = 0; x < width; x++) {
+                sb.Append(GetConsoleChar(arr[x,y]));
             }
             sb.Append("\n");
         }
@@ -200,11 +212,16 @@ public class DungeonGeneration : MonoBehaviour
             throw (new System.Exception("Cannot find open tile in non-initialized tiles"));
         }
         while (true) {
-            int i = Random.Range(0, mapHeight);
-            int j = Random.Range(0, mapWidth);
-            if (tiles[i, j] == 0) {
-                return new Vector2(j, i);
+            int x = Random.Range(0, mapWidth);
+            int y = Random.Range(0, mapHeight);
+            if (tiles[x, y] == 0) {
+                return new Vector2(x, y);
             }
         }
+    }
+
+    public (int, int) FindRandomOpenTileTuple() {
+        Vector2 spot = FindRandomOpenTile();
+        return (System.Convert.ToInt32(spot.x), System.Convert.ToInt32(spot.y));
     }
 }
